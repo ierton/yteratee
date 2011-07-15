@@ -19,6 +19,9 @@ data IncrementalGetException = FailException String | EndOfStreamException | Ign
 
 instance E.Exception IncrementalGetException
 
+-- FIXME: reimplement Stream as
+-- data Stream s = Chunk s | EOS s
+-- to build a correct Monoid on top of it
 data Stream s = Chunk s | EOS
 
 instance Monoid s => Monoid (Stream s) where
@@ -54,6 +57,9 @@ instance (Functor m, Monad m) => Functor (Yteratee s m) where
         i_cont = cont . fmap f
     in runYter m s i_done i_cont err
 
+instance MonadTrans (Yteratee s) where
+    lift m = Yteratee $ \s done _ _ -> m >>= flip done s
+
 bindYteratee :: (Monad m) => Yteratee s m a -> (a -> Yteratee s m b) -> Yteratee s m b
 bindYteratee ma f = Yteratee $ \s done cont err -> 
     let i_done a s' = runYter (f a) s' done cont err
@@ -64,6 +70,8 @@ throwError e = Yteratee $ \s _ _ err -> err e s
 
 throwEOS = throwError (E.toException EndOfStreamException)
 
+identity = Yteratee $ \s done _ _ -> done undefined s
+
 -- | Checks it's argument for error. Doesn't save and restore the stream. Use this function
 -- instead of @try@ whenever possible.
 checkErr :: (Monad m) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
@@ -73,7 +81,7 @@ checkErr p = Yteratee $ \s done cont err ->
         i_cont = cont . checkErr
     in runYter p s i_done i_cont i_err
 
--- | Same as @checkErr@ but consumes input only if argument succeeds
+-- | Same as @checkErr@ but saves stream state and rolls back in case of error
 try :: (Monad m) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
 try p = Yteratee $ \s done cont err ->
     let i_done a s' = done (Right a) s'
@@ -89,6 +97,8 @@ stream2stream = step mempty
                 (Chunk new) -> cont (step $ save`mappend`new)
                 (EOS) -> done save EOS
 
+-- | Takes an iteratee and terminates it's stream with EOS. The iteratee has
+-- to return a value or an error will be thrown.
 join :: (Monad m) => Yteratee s m a -> Yteratee s m a
 join g = Yteratee $ \s done cont err -> 
     let i_done a _ = done a s
@@ -96,6 +106,7 @@ join g = Yteratee $ \s done cont err ->
         i_err e _ = err e s
     in runYter g EOS i_done i_cont i_err
 
+-- | Same as @join@ but iteratee passed in in monadic way
 joinI :: (Monad m) => Yteratee s m (Yteratee s m a) -> Yteratee s m a
 joinI = (>>= join)
 
@@ -105,8 +116,6 @@ run g = runYter g EOS i_done i_cont i_err
           i_cont _ = E.throw IgnoresEOS
           i_err e _ = E.throw e
 
-identity = Yteratee $ \s done _ _ -> done undefined s
-
 enumPure1Chunk :: (Monad m) => s -> Yteratee s m a -> m (Yteratee s m a)
 enumPure1Chunk s g =
     let i_done a _ = return (return a)
@@ -114,5 +123,28 @@ enumPure1Chunk s g =
         i_err e _ = return (throwError e)
     in runYter g (Chunk s) i_done i_cont i_err
 
+convStream :: (Monad m) => Yteratee s1 m s2 -> YEnumeratee s1 s2 m a
+convStream t i = fromCallbackE t i $ \s i' ->
+    let i_done a _ = return (True, return a)
+        i_err  e _ = return (True, throwError e)
+        i_cont k   = return (False, k)
+    in runYter i' (Chunk s) i_done i_cont i_err
+        
+isStreamFinished :: (Monad m) => Yteratee s m Bool
+isStreamFinished = Yteratee $ \s done _ _ ->
+    case s of
+        s@(Chunk _) -> done False s
+        eos -> done True eos
 
+fromCallbackE :: (Monad m) => Yteratee s1 m s2 -> st -> (s2 -> st -> m (Bool, st)) -> Yteratee s1 m st
+fromCallbackE g st f = do
+    b <- isStreamFinished
+    case b of
+        True -> return st
+        False -> do
+            s2 <- g
+            (stop, res) <- lift $ f s2 st
+            case (stop, res) of
+                (True, st') -> return st'
+                (False, st') -> fromCallbackE g st' f
 

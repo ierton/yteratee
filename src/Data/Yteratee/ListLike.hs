@@ -51,7 +51,7 @@ takeE n g = Yteratee $ \stream done cont err ->
                            i_cont k = cont $ takeE (n-len) k
                            i_err e s' = cont $ takeE (n-len) (throwError e)
                        in runYter g c i_done i_cont i_err
-        eos -> err (toException EndOfStreamException) eos
+        eos -> done g eos
 
 take n = takeE n stream2stream >>= join
 
@@ -83,4 +83,21 @@ enumPureNChunk s n g = L.foldl' (>>=) (return g) $ P.map enumPure1Chunk $ breakN
                    | otherwise = (LL.length s)`div`x
         breakN n l | LL.null l = []
                    | otherwise = (LL.take n l) : (breakN n (LL.drop n l))
+
+peek :: (Monad m, LL.ListLike s el) => Yteratee s m (Maybe el)
+peek = Yteratee $ \s done cont err ->
+    case s of
+        Chunk s | LL.null s -> cont peek
+                | otherwise -> done (Just $ LL.head s) (Chunk $ LL.tail s)
+        eos -> done Nothing eos
+
+drop :: (Monad m, LL.ListLike s el) => Int -> Yteratee s m ()
+drop n = Yteratee $ \s done cont err ->
+    case s of
+        Chunk c -> 
+            case LL.length c >= n of
+                True -> done () (Chunk $ LL.drop n c)
+                False -> cont $ Data.Yteratee.ListLike.drop (n - LL.length c)
+        eos -> done () eos
+
 
