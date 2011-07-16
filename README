@@ -1,0 +1,28 @@
+Yet another iteratee clone. Currently, only part of original interface is
+supported.
+
+Main purpose to start this project was difficulties in writing of relatively
+sophisticated parser of dvb stream using existing libraries. I tried to use 
+iteratees, but gave up to implement error-recovering correctly.
+
+Main differences from the original iteratees are:
+
+- Does not treat empty stream in a special way
+- Only one type of errors with easy to use recovering facilities
+- Cleaner code, easier to check
+- Less tested
+
+Lots of code (almost all tests) were borrowed from iteratee and binary-strict
+projects.
+
+Many Thanks to 
+
+John Lato
+Lennart Kolmodin
+Antoine Latter
+
+for help and inspiration
+
+--
+Sergey Mironov
+<ierton@gmail.com>
