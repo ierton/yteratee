@@ -1,9 +1,10 @@
-Yet another iteratee clone. Currently, only part of original interface is
+Yet another iteratee clone. Currently, only subset of original interface is
 supported.
 
 Main purpose to start this project was difficulties in writing of relatively
 sophisticated parser of dvb stream using existing libraries. I tried to use 
-iteratees, but gave up to implement error-recovering correctly.
+IncrementalGet and iteratees, but gave up to implement error-recovering
+correctly.
 
 Main differences from the original iteratees are:
 
