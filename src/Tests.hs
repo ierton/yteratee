@@ -87,19 +87,19 @@ instance (Show a, LL.ListLike s el) => Show (Yteratee s Identity a) where
 prop_convId xs = runner1 (enumPure1Chunk xs convId) == xs
   where types = xs :: [Int]
 
--- convStream
+-- convStreamE
 prop_convstream xs i = P.length xs > 0 ==>
-                       runner2 (enumPure1Chunk xs $ convStream convId i)
+                       runner2 (enumPure1Chunk xs $ convStreamE convId i)
                        == runner1 (enumPure1Chunk xs i)
   where types = (xs :: [Int], i :: I)
 
 prop_convstream2 xs = P.length xs > 0 ==>
-                      runner2 (enumPure1Chunk xs $ convStream convId I.head)
+                      runner2 (enumPure1Chunk xs $ convStreamE convId I.head)
                       == runner1 (enumPure1Chunk xs I.head)
   where types = xs :: [Int]
 
 prop_convstream3 xs = P.length xs > 0 ==>
-                      runner2 (enumPure1Chunk xs $ convStream convId stream2list)
+                      runner2 (enumPure1Chunk xs $ convStreamE convId stream2list)
                       == runner1 (enumPure1Chunk xs stream2list)
   where types = xs :: [Int]
 

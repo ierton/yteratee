@@ -32,7 +32,7 @@ stream2list = step []
         step save = Yteratee $ \s done cont err ->
             case s of
                 (Chunk new) -> cont (step $ save ++ (LL.toList new))
-                (EOS) -> done save EOS
+                eos -> done save eos
 
 takeE :: (LL.ListLike s el, Monad m) => Int -> YEnumeratee s s m a
 takeE 0 g = (return g)
