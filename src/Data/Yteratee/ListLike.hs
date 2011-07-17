@@ -100,4 +100,22 @@ drop n = Yteratee $ \s done cont err ->
                 False -> cont $ Data.Yteratee.ListLike.drop (n - LL.length c)
         eos -> done () eos
 
+length :: (Monad m, LL.ListLike s el, Num a) => Yteratee s m a
+length = step (conv 0)
+    where 
+        conv = fromInteger . toInteger
+        step n = Yteratee $ \s done cont err -> case s of
+                    Chunk c -> cont $ step (n + (conv $ LL.length c))
+                    eos -> done n eos
+{-
+consumed :: (Monad m, Monoid s, LL.ListLike s el) => Yteratee s m a -> Yteratee s m (s,a)
+consumed i = step mempty
+    where 
+        step = Yteratee $ \s done cont err ->
+            let consumed (Chunk a) (Chunk b) = Chunk $ LL.take ((LL.length b) - (LL.length a)) b
+                i_done a s' = return (consumed s' s, a)
+                i_cont k = 
+                i_err e s' = 
+            in runYter i s i_done i_cont i_err
+-}
 

@@ -77,21 +77,13 @@ throwError e = Yteratee $ \s _ _ err -> err e s
 
 throwEOS = throwError (E.toException EndOfStreamException)
 
-identity = Yteratee $ \s done _ _ -> done undefined s
+identity = Yteratee $ \s done _ _ -> done () s
 
 run :: (Monad m) => Yteratee s m a -> m a
 run g = runYter g (EOS Nothing) i_done i_cont i_err
     where i_done a _ = return a
           i_cont _ = E.throw IgnoresEOS
           i_err e _ = E.throw e
-
-{-
-runCheck :: (Monad m) => Stream s -> Yteratee s m a -> m (Either (Yteratee s m a) (Either E.SomeException a,Stream s))
-runCheck s g = runYter g s i_done i_cont i_err
-    where i_done a s' = return (Right ((Right a),s'))
-          i_cont k = return (Left k)
-          i_err e s' = return (Right ((Left e),s'))
--}
 
 -- | Checks it's argument for error. Doesn't save and restore the stream. Use this function
 -- instead of @try@ whenever possible.
@@ -188,4 +180,16 @@ enumFromCallback cb st i = do
             case done of
                 True -> return i'
                 False -> enumFromCallback cb st' i'
+
+accumulate ::  (Monad m, Monoid s) => Stream s -> Yteratee s m ()
+accumulate a = Yteratee $ \s done cont err -> done () (a`mappend`s)
+
+{-
+enumWith
+  :: (Monad m, LL.ListLike s el)
+  => Yteratee s m a
+  -> Yteratee s m b
+  -> Yteratee s m (a, b)
+enumWith i1 i2 = do
+-}
 
