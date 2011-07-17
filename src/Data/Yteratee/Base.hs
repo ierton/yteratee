@@ -79,11 +79,14 @@ throwEOS = throwError (E.toException EndOfStreamException)
 
 identity = Yteratee $ \s done _ _ -> done () s
 
+runCheck :: (Monad m) => Yteratee s m a -> m (Either E.SomeException a)
+runCheck g = runYter g (EOS Nothing) i_done i_cont i_err
+    where i_done a _ = return (Right a)
+          i_cont _ = return (Left (E.toException IgnoresEOS))
+          i_err e _ = return (Left e)
+
 run :: (Monad m) => Yteratee s m a -> m a
-run g = runYter g (EOS Nothing) i_done i_cont i_err
-    where i_done a _ = return a
-          i_cont _ = E.throw IgnoresEOS
-          i_err e _ = E.throw e
+run i = runCheck i >>= either E.throw return
 
 -- | Checks it's argument for error. Doesn't save and restore the stream. Use this function
 -- instead of @try@ whenever possible.
@@ -155,11 +158,11 @@ feedCallback g st f = do
                 (True, st') -> return st'
                 (False, st') -> feedCallback g st' f
 
-enumPureCheckDone :: (Monad m) => Stream s -> Yteratee s m a -> m (Bool, Yteratee s m a)
+enumPureCheckDone :: (Monad m) => Stream s -> Yteratee s m a -> m (Maybe (Stream s), Yteratee s m a)
 enumPureCheckDone s g = runYter g s i_done i_cont i_err
-    where i_done a _ = return (True, return a)
-          i_cont k = return (False,k)
-          i_err e _ = return (True,throwError e)
+    where i_done a s' = return (Just s', return a)
+          i_err e s' = return (Just s',throwError e)
+          i_cont k = return (Nothing, k)
 
 enumPure :: (Monad m) => Stream s -> Yteratee s m a -> m (Yteratee s m a)
 enumPure s g = enumPureCheckDone s g >>= return . snd
@@ -178,18 +181,6 @@ enumFromCallback cb st i = do
         Right (st',s) -> do
             (done,i') <- enumPureCheckDone (Chunk s) i
             case done of
-                True -> return i'
-                False -> enumFromCallback cb st' i'
-
-accumulate ::  (Monad m, Monoid s) => Stream s -> Yteratee s m ()
-accumulate a = Yteratee $ \s done cont err -> done () (a`mappend`s)
-
-{-
-enumWith
-  :: (Monad m, LL.ListLike s el)
-  => Yteratee s m a
-  -> Yteratee s m b
-  -> Yteratee s m (a, b)
-enumWith i1 i2 = do
--}
+                Just _ -> return i'
+                Nothing -> enumFromCallback cb st' i'
 

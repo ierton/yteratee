@@ -1,5 +1,3 @@
--- {-# LANGUAGE UndecidableInstances #-}
--- {-# Rank2Types #-}
 {-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, Rank2Types,
     DeriveDataTypeable, ExistentialQuantification, ScopedTypeVariables #-}
 module Data.Yteratee.ListLike where
@@ -107,15 +105,26 @@ length = step (conv 0)
         step n = Yteratee $ \s done cont err -> case s of
                     Chunk c -> cont $ step (n + (conv $ LL.length c))
                     eos -> done n eos
-{-
-consumed :: (Monad m, Monoid s, LL.ListLike s el) => Yteratee s m a -> Yteratee s m (s,a)
-consumed i = step mempty
-    where 
-        step = Yteratee $ \s done cont err ->
-            let consumed (Chunk a) (Chunk b) = Chunk $ LL.take ((LL.length b) - (LL.length a)) b
-                i_done a s' = return (consumed s' s, a)
-                i_cont k = 
-                i_err e s' = 
-            in runYter i s i_done i_cont i_err
--}
+
+enumWith
+  :: (Monad m, LL.ListLike s el)
+  => Yteratee s m a
+  -> Yteratee s m b
+  -> Yteratee s m (a, b)
+enumWith i1 i2 = Yteratee $ \s done cont err -> do
+    (stop, i1') <- enumPureCheckDone s i1
+    case stop of
+        Just s' -> do
+            i2' <- enumPure (cut s s') i2
+            a <- run i1'
+            mb <- runCheck i2'
+            case mb of
+                Left e -> err e s'
+                Right b -> done (a,b) s'
+        Nothing -> do
+            i2' <- enumPure s i2
+            cont $ enumWith i1' i2'
+    where
+        cut (Chunk a) (Chunk b) = Chunk $ LL.take ((LL.length a) - (LL.length b)) a
+        cut x@_        _        = x
 
