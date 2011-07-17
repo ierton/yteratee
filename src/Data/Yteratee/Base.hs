@@ -97,13 +97,21 @@ checkErr p = Yteratee $ \s done cont err ->
         i_cont k = cont (checkErr k)
     in runYter p s i_done i_cont i_err
 
+{-
 -- | Same as @checkErr@ but saves stream state and rolls back in case of error
-try :: (Monad m) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
-try p = Yteratee $ \s done cont err ->
-    let i_done a s' = done (Right a) s'
-        i_err e _ = done (Left e) s
-        i_cont k = cont (try k)
-    in runYter p s i_done i_cont i_err
+try :: (Monad m, Monoid s) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
+try = step mempty
+    where
+        step save p = Yteratee $ \s done cont err ->
+            case s of
+                (Chunk new) ->
+                    let cache = save`mappend`s
+                        i_done a s' = done (Right a) s'
+                        i_err e _ = done (Left e) cache
+                        i_cont k = cont (step cache k)
+                    in runYter p s i_done i_cont i_err
+                eos -> 
+-}
 
 stream2stream :: (Monad m, Monoid s) => Yteratee s m s
 stream2stream = step mempty 
