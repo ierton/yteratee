@@ -1,5 +1,13 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, Rank2Types,
-    DeriveDataTypeable, ExistentialQuantification, ScopedTypeVariables #-}
+{-# LANGUAGE 
+    TypeFamilies, 
+    FlexibleContexts, 
+    FlexibleInstances, 
+    Rank2Types,
+    DeriveDataTypeable, 
+    ExistentialQuantification, 
+    ScopedTypeVariables,
+    BangPatterns
+    #-}
 module Data.Yteratee.ListLike where
 
 import Data.Yteratee.Base
@@ -102,8 +110,8 @@ length :: (Monad m, LL.ListLike s el, Num a) => Yteratee s m a
 length = step (conv 0)
     where 
         conv = fromInteger . toInteger
-        step n = Yteratee $ \s done cont err -> case s of
-                    Chunk c -> cont $ step (n + (conv $ LL.length c))
+        step !n = Yteratee $ \s done cont err -> case s of
+                    Chunk c -> cont $ step $! (n + (conv $ LL.length c))
                     eos -> done n eos
 
 enumWith
@@ -116,11 +124,12 @@ enumWith i1 i2 = Yteratee $ \s done cont err -> do
     case stop of
         Just s' -> do
             i2' <- enumPure (cut s s') i2
-            a <- run i1'
+            ma <- runCheck i1'
             mb <- runCheck i2'
-            case mb of
-                Left e -> err e s'
-                Right b -> done (a,b) s'
+            case (ma,mb) of
+                (Left e ,_) -> err e s'
+                (_ ,Left e) -> err e s'
+                (Right a,Right b) -> done (a,b) s'
         Nothing -> do
             i2' <- enumPure s i2
             cont $ enumWith i1' i2'

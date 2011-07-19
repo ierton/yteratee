@@ -1,5 +1,13 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, Rank2Types,
-    DeriveDataTypeable, ExistentialQuantification, ScopedTypeVariables #-}
+{-# LANGUAGE 
+    TypeFamilies, 
+    FlexibleContexts, 
+    FlexibleInstances, 
+    Rank2Types,
+    DeriveDataTypeable, 
+    ExistentialQuantification, 
+    ScopedTypeVariables,
+    BangPatterns
+    #-}
 module Data.Yteratee.Base where
 
 import Control.Monad hiding(join)

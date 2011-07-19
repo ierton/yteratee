@@ -3,17 +3,19 @@
 import Data.Typeable
 import Data.Data
 import Data.Yteratee as I
-import Data.Yteratee.IO
+import Data.Yteratee.IO as II
 import Data.Map as M
-import Data.ListLike
+import Data.ListLike as LL
 import Data.ByteString
 import Data.Char
 import Data.Word
+import Data.Maybe
 import Data.String
 import Control.Monad
 import Control.Monad.Error
 import Control.Exception
 import Data.ByteString as BS
+import Prelude as P
 
 import System.Environment
 import System.Exit
@@ -69,7 +71,7 @@ countBytes i = I.enumWith i (I.length >>= return . conv)
 
 raiseError = I.throwError . toException
 
-afield :: (MonadIO m) => Yteratee BS.ByteString m AField
+afield :: (Monad m) => Yteratee BS.ByteString m AField
 afield = do
     len <- getWord8 >>= return . toWord32
     when (len > (psize-4)) $
@@ -77,7 +79,7 @@ afield = do
     body <- getByteString len
     return $ AField body
 
-packet :: (MonadIO m) => Yteratee BS.ByteString m TSPacket
+packet :: (Monad m) => Yteratee BS.ByteString m TSPacket
 packet = do
     (magic,tmp1) <- countBytes getWord8
     when (magic /= startbyte) (raiseError ENotPacket)
@@ -98,31 +100,41 @@ packet = do
 skipGarbage :: (Monad m) => Yteratee BS.ByteString m ()
 skipGarbage = I.takeWhile (/= startbyte) >> return ()
 
-{-
 -- | Finds and parses one TS packet
-packetF :: (MonadIO m) => Iteratee BS.ByteString m TSPacket
-packetF = step 0
+packetCheck :: (Monad m) => Yteratee BS.ByteString m (Maybe TSPacket)
+packetCheck = step 0
     where 
         step g = do
-            (mpacket,ps) <- countBytes $ runErrorT $ packet
-            case mpacket of
+            mbe <- I.checkErr packet
+            case mbe of
                 Right p -> do
-                    return p{garbage=g}
+                    return $ Just p{garbage=g}
                 Left e -> do
-                    skip g
+                    case fromException e of
+                        Just I.EndOfStreamException -> return Nothing
+                        Just _ -> I.throwError e
+                        _ -> skip g
         skip g = do
             (_,g') <- countBytes $ skipGarbage
             step (g+g')
 
-packets :: (MonadIO m) => Iteratee BS.ByteString m [TSPacket]
-packets = do
-    p <- checkErr packetF
-    case p of
-        Right p -> do
-            ps <- packets
-            return (p:ps)
-        Left _ -> return []
+packets :: (Monad m) => Int -> Yteratee BS.ByteString m [TSPacket]
+packets n = do
+    !l <- LL.sequence $ P.replicate n packetCheck
+    return (P.map fromJust $ P.filter isJust l)
 
+pcount :: (Monad m) => Yteratee BS.ByteString m (Yteratee [TSPacket] m Int)
+pcount = I.convStreamE (packets 4) I.length
+
+runDvb :: (Monad m) => m (Yteratee [TSPacket] m Int)
+runDvb = I.run pcount
+
+main = do
+    (f:_) <- getArgs
+    p <- II.fileDriverVBuf 1024 pcount f >>= I.run
+    P.putStrLn $ show p
+
+{-
 data Statistics = Statistics {
     statPids :: !(M.Map Word16 Int),
     statAlen :: !(M.Map Int Int),
