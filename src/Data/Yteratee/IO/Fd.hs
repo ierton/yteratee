@@ -32,7 +32,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 
-import System.IO (SeekMode(..))
+--import System.IO (SeekMode(..))
 
 import System.Posix hiding (FileOffset)
 

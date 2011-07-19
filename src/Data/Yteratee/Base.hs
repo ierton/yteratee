@@ -12,14 +12,11 @@ module Data.Yteratee.Base where
 
 import Control.Monad hiding(join)
 import Control.Monad.Trans
-import Control.Applicative
-import qualified Control.Exception as E
 import Data.Monoid 
 import Data.Either
 import Data.Data
-import Data.Typeable
-import qualified Data.ListLike as LL
-import qualified Data.List as L
+import Data.Typeable()
+import qualified Control.Exception as E
 import Prelude as P hiding(head)
 
 data IncrementalGetException = FailException String | EndOfStreamException | IgnoresEOS
@@ -35,8 +32,8 @@ data Stream s = Chunk s | EOS (Maybe E.SomeException)
 instance Monoid s => Monoid (Stream s) where
     mempty = Chunk mempty
     mappend (Chunk a) (Chunk b)  = Chunk (a`mappend`b)
-    mappend (Chunk a) (EOS x)    = EOS x
-    mappend (EOS x)   (Chunk a)  = EOS x
+    mappend (Chunk _) (EOS x)    = EOS x
+    mappend (EOS x)   (Chunk _)  = EOS x
     mappend (EOS x)   (EOS _)    = EOS x
 
 -- | Map a function over a stream.
@@ -68,7 +65,7 @@ instance (Monad m) => Monad (Yteratee s m) where
 
 instance (Functor m, Monad m) => Functor (Yteratee s m) where
   fmap f m = Yteratee $ \s done cont err ->
-    let i_done a s = done (f a) s 
+    let i_done a s' = done (f a) s'
         i_cont k = cont (fmap f k)
     in runYter m s i_done i_cont err
 
@@ -81,10 +78,13 @@ bindYteratee ma f = Yteratee $ \s done cont err ->
         i_cont k = cont (bindYteratee k f)
     in runYter ma s i_done i_cont err
 
+throwError :: (Monad m) => E.SomeException -> Yteratee s m a
 throwError e = Yteratee $ \s _ _ err -> err e s
 
+throwEOS :: (Monad m) => Yteratee s m a
 throwEOS = throwError (E.toException EndOfStreamException)
 
+identity :: (Monad m) => Yteratee s m ()
 identity = Yteratee $ \s done _ _ -> done () s
 
 runCheck :: (Monad m) => Yteratee s m a -> m (Either E.SomeException a)
@@ -99,7 +99,7 @@ run i = runCheck i >>= either E.throw return
 -- | Checks it's argument for error. Doesn't save and restore the stream. Use this function
 -- instead of @try@ whenever possible.
 checkErr :: (Monad m) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
-checkErr p = Yteratee $ \s done cont err ->
+checkErr p = Yteratee $ \s done cont _ ->
     let i_done a s' = done (Right a) s'
         i_err e s' = done (Left e) s'
         i_cont k = cont (checkErr k)
@@ -124,7 +124,7 @@ try = step mempty
 stream2stream :: (Monad m, Monoid s) => Yteratee s m s
 stream2stream = step mempty 
     where 
-        step save = Yteratee $ \s done cont err ->
+        step save = Yteratee $ \s done cont _ ->
             case s of
                 (Chunk new) -> cont (step $ save`mappend`new)
                 eos -> done save eos
@@ -132,7 +132,7 @@ stream2stream = step mempty
 -- | Takes an iteratee and terminates it's stream with EOS. The iteratee has
 -- to return a value or an error will be thrown.
 join :: (Monad m) => Yteratee s m a -> Yteratee s m a
-join g = Yteratee $ \s done cont err -> 
+join g = Yteratee $ \s done _ err -> 
     let i_done a _ = done a s
         i_cont _ = err (E.toException IgnoresEOS) s
         i_err e _ = err e s
@@ -153,7 +153,7 @@ convStreamE t i = feedCallback t i $ \s i' ->
 isStreamFinished :: (Monad m) => Yteratee s m Bool
 isStreamFinished = Yteratee $ \s done _ _ ->
     case s of
-        s@(Chunk _) -> done False s
+        (Chunk _) -> done False s
         eos -> done True eos
 
 -- | Use iteratee supplied to repeatedly feed the callback with data. Callback

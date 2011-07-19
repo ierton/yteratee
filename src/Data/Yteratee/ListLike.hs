@@ -12,21 +12,16 @@ module Data.Yteratee.ListLike where
 
 import Data.Yteratee.Base
 import Control.Monad hiding(join)
-import Control.Monad.Trans
-import Control.Applicative
 import Control.Exception as E
-import Data.Monoid 
 import Data.Either
-import Data.Data
-import Data.Typeable
 import qualified Data.ListLike as LL
 import qualified Data.List as L
-import Prelude as P hiding(head)
+import Prelude as P hiding(head,pred)
 
 head :: (LL.ListLike s el, Monad m) => Yteratee s m el
 head = Yteratee step
     where 
-        step (Chunk s) done cont err = 
+        step (Chunk s) done cont _ = 
             case LL.null s of
                 True -> cont head
                 False -> done (LL.head s) (Chunk $ LL.tail s)
@@ -35,14 +30,14 @@ head = Yteratee step
 stream2list :: (Monad m, LL.ListLike s el) => Yteratee s m [el]
 stream2list = step []
     where 
-        step save = Yteratee $ \s done cont err ->
+        step save = Yteratee $ \s done cont _ ->
             case s of
                 (Chunk new) -> cont (step $ save ++ (LL.toList new))
                 eos -> done save eos
 
 takeE :: (LL.ListLike s el, Monad m) => Int -> YEnumeratee s s m a
 takeE 0 g = (return g)
-takeE n g = Yteratee $ \stream done cont err ->
+takeE n g = Yteratee $ \stream done cont _ ->
     case stream of
         c@(Chunk s) -> 
             let len = LL.length s
@@ -53,19 +48,20 @@ takeE n g = Yteratee $ \stream done cont err ->
                            i_err e _ = done (throwError e) (Chunk t)
                        in runYter g (Chunk h) i_done i_cont i_err
                False -> let
-                           i_done a s' = cont $ takeE (n-len) (return a)
+                           i_done a _ = cont $ takeE (n-len) (return a)
                            i_cont k = cont $ takeE (n-len) k
-                           i_err e s' = cont $ takeE (n-len) (throwError e)
+                           i_err e _ = cont $ takeE (n-len) (throwError e)
                        in runYter g c i_done i_cont i_err
         eos -> done g eos
 
+take :: (LL.ListLike s el, Monad m) => Int -> Yteratee s m s
 take n = takeE n stream2stream >>= join
 
 takeWhileE :: (Monad m, LL.ListLike s el) => (el -> Bool) -> YEnumeratee s s m a
-takeWhileE pred g = Yteratee $ \s done cont err ->
+takeWhileE pr g = Yteratee $ \s done cont _ ->
     case s of
-        Chunk s ->
-            let (h,t) = LL.span pred s
+        Chunk x ->
+            let (h,t) = LL.span pr x
             in case (LL.null t) of
                False -> 
                     let i_done a _ = done (return a) (Chunk t)
@@ -73,9 +69,9 @@ takeWhileE pred g = Yteratee $ \s done cont err ->
                         i_cont k = done k (Chunk t) 
                     in runYter g (Chunk h) i_done i_cont i_err
                True ->
-                    let i_done a _ = cont $ takeWhileE pred (return a)
-                        i_err e _ = cont $ takeWhileE pred (throwError e)
-                        i_cont k = cont $ takeWhileE pred k 
+                    let i_done a _ = cont $ takeWhileE pr (return a)
+                        i_err e _ = cont $ takeWhileE pr (throwError e)
+                        i_cont k = cont $ takeWhileE pr k 
                     in runYter g (Chunk h) i_done i_cont i_err
         eos -> done g eos
 
@@ -87,18 +83,18 @@ enumPureNChunk s n g = L.foldl' (>>=) (return g) $ P.map enumPure1Chunk $ breakN
     where
         chunklen x | (x <= 0) || (x > (LL.length s)) = 1
                    | otherwise = (LL.length s)`div`x
-        breakN n l | LL.null l = []
-                   | otherwise = (LL.take n l) : (breakN n (LL.drop n l))
+        breakN m l | LL.null l = []
+                   | otherwise = (LL.take m l) : (breakN m (LL.drop m l))
 
 peek :: (Monad m, LL.ListLike s el) => Yteratee s m (Maybe el)
-peek = Yteratee $ \s done cont err ->
+peek = Yteratee $ \s done cont _ ->
     case s of
-        Chunk s | LL.null s -> cont peek
-                | otherwise -> done (Just $ LL.head s) (Chunk $ LL.tail s)
+        Chunk x | LL.null x -> cont peek
+                | otherwise -> done (Just $ LL.head x) (Chunk $ LL.tail x)
         eos -> done Nothing eos
 
 drop :: (Monad m, LL.ListLike s el) => Int -> Yteratee s m ()
-drop n = Yteratee $ \s done cont err ->
+drop n = Yteratee $ \s done cont _ ->
     case s of
         Chunk c -> 
             case LL.length c >= n of
@@ -110,7 +106,7 @@ length :: (Monad m, LL.ListLike s el, Num a) => Yteratee s m a
 length = step (conv 0)
     where 
         conv = fromInteger . toInteger
-        step !n = Yteratee $ \s done cont err -> case s of
+        step !n = Yteratee $ \s done cont _ -> case s of
                     Chunk c -> cont $ step $! (n + (conv $ LL.length c))
                     eos -> done n eos
 
