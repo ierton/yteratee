@@ -11,7 +11,7 @@ Main differences from the original iteratees are:
 - Does not treat empty stream in a special way
 - Only one type of exceptions with easy to use recovering facilities
 - Doesn't support Seeking exceptions (error-prone)
-- Cleaner code, easier to check
+- Simpler code, easier to check
 - Less tested
 
 Lots of code (almost all tests) were borrowed from iteratee and binary-strict
