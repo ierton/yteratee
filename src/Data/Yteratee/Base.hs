@@ -60,7 +60,7 @@ type YEnumeratee sFrom sTo m a =
 
 instance (Monad m) => Monad (Yteratee s m) where
     return a = Yteratee $ \s done _ _ -> done a s
-    fail msg = throwError (E.toException $ FailException msg)
+    fail msg = throwError (FailException msg)
     (>>=) = bindYteratee
 
 instance (Functor m, Monad m) => Functor (Yteratee s m) where
@@ -78,11 +78,11 @@ bindYteratee ma f = Yteratee $ \s done cont err ->
         i_cont k = cont (bindYteratee k f)
     in runYter ma s i_done i_cont err
 
-throwError :: (Monad m) => E.SomeException -> Yteratee s m a
-throwError e = Yteratee $ \s _ _ err -> err e s
+throwError :: (Monad m, E.Exception e) => e -> Yteratee s m a
+throwError e = Yteratee $ \s _ _ err -> err (E.toException e) s
 
 throwEOS :: (Monad m) => Yteratee s m a
-throwEOS = throwError (E.toException EndOfStreamException)
+throwEOS = throwError EndOfStreamException
 
 identity :: (Monad m) => Yteratee s m ()
 identity = Yteratee $ \s done _ _ -> done () s
