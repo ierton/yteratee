@@ -19,10 +19,10 @@ import Data.Typeable()
 import qualified Control.Exception as E
 import Prelude as P hiding(head)
 
-data IncrementalGetException = FailException String | EndOfStreamException | IgnoresEOS
+data YterateeException = FailException String | EndOfStreamException | IgnoresEOS
     deriving (Show, Typeable)
 
-instance E.Exception IncrementalGetException
+instance E.Exception YterateeException
 
 -- FIXME: reimplement Stream as
 -- data Stream s = Chunk s | EOS s
