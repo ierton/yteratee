@@ -19,8 +19,10 @@ import Data.Typeable()
 import qualified Control.Exception as E
 import Prelude as P hiding(head)
 
-data YterateeException = FailException String | EndOfStreamException | IgnoresEOS
-    deriving (Show, Typeable)
+data YterateeException = FailException String 
+                       | EndOfStreamException 
+                       | IgnoresEOS
+                       deriving (Show, Typeable)
 
 instance E.Exception YterateeException
 
@@ -72,7 +74,8 @@ instance (Functor m, Monad m) => Functor (Yteratee s m) where
 instance MonadTrans (Yteratee s) where
     lift m = Yteratee $ \s done _ _ -> m >>= flip done s
 
-bindYteratee :: (Monad m) => Yteratee s m a -> (a -> Yteratee s m b) -> Yteratee s m b
+bindYteratee :: (Monad m) 
+    => Yteratee s m a -> (a -> Yteratee s m b) -> Yteratee s m b
 bindYteratee ma f = Yteratee $ \s done cont err -> 
     let i_done a s' = runYter (f a) s' done cont err
         i_cont k = cont (bindYteratee k f)
@@ -96,9 +99,10 @@ runCheck g = runYter g (EOS Nothing) i_done i_cont i_err
 run :: (Monad m) => Yteratee s m a -> m a
 run i = runCheck i >>= either E.throw return
 
--- | Checks it's argument for error. Doesn't save and restore the stream. Use this function
--- instead of @try@ whenever possible.
-checkErr :: (Monad m) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
+-- | Checks it's argument for error. Doesn't save and restore the stream. Use
+-- this function instead of @try@ whenever possible.
+checkErr :: (Monad m) 
+    => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
 checkErr p = Yteratee $ \s done cont _ ->
     let i_done a s' = done (Right a) s'
         i_err e s' = done (Left e) s'
@@ -107,7 +111,8 @@ checkErr p = Yteratee $ \s done cont _ ->
 
 {-
 -- | Same as @checkErr@ but saves stream state and rolls back in case of error
-try :: (Monad m, Monoid s) => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
+try :: (Monad m, Monoid s) 
+    => Yteratee s m a -> Yteratee s m (Either E.SomeException a)
 try = step mempty
     where
         step save p = Yteratee $ \s done cont err ->
@@ -174,7 +179,8 @@ feedCallback g st f = do
                 (True, st') -> return st'
                 (False, st') -> feedCallback g st' f
 
-enumPureCheckDone :: (Monad m) => Stream s -> Yteratee s m a -> m (Maybe (Stream s), Yteratee s m a)
+enumPureCheckDone :: (Monad m) 
+    => Stream s -> Yteratee s m a -> m (Maybe (Stream s), Yteratee s m a)
 enumPureCheckDone s g = runYter g s i_done i_cont i_err
     where i_done a s' = return (Just s', return a)
           i_err e s' = return (Just s',throwError e)
