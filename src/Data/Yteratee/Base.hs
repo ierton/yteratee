@@ -74,6 +74,9 @@ instance (Functor m, Monad m) => Functor (Yteratee s m) where
 instance MonadTrans (Yteratee s) where
     lift m = Yteratee $ \s done _ _ -> m >>= flip done s
 
+instance (MonadIO m) => MonadIO (Yteratee s m) where
+    liftIO = lift . liftIO
+
 bindYteratee :: (Monad m) 
     => Yteratee s m a -> (a -> Yteratee s m b) -> Yteratee s m b
 bindYteratee ma f = Yteratee $ \s done cont err -> 
@@ -83,9 +86,6 @@ bindYteratee ma f = Yteratee $ \s done cont err ->
 
 throwError :: (Monad m, E.Exception e) => e -> Yteratee s m a
 throwError e = Yteratee $ \s _ _ err -> err (E.toException e) s
-
-throwEOS :: (Monad m) => Yteratee s m a
-throwEOS = throwError EndOfStreamException
 
 identity :: (Monad m) => Yteratee s m ()
 identity = Yteratee $ \s done _ _ -> done () s
