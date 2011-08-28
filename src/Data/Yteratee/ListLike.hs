@@ -19,13 +19,18 @@ import qualified Data.List as L
 import Prelude as P hiding(head,pred)
 
 head :: (LL.ListLike s el, Monad m) => Yteratee s m el
-head = Yteratee step
-    where 
-        step (Chunk s) done cont _ = 
-            case LL.null s of
-                True -> cont head
-                False -> done (LL.head s) (Chunk $ LL.tail s)
-        step eos _ _ err = err (toException EndOfStreamException) eos
+head = Yteratee step where
+    step :: (LL.ListLike s el, Monad m) => forall r .
+        (Stream s)
+         -> (el -> (Stream s) -> m r)
+         -> (Yteratee s m el -> m r)
+         -> (E.SomeException -> (Stream s) -> m r)
+         -> m r
+    step (Chunk s) done cont _ = 
+        case LL.null s of
+            True -> cont head
+            False -> done (LL.head s) (Chunk $ LL.tail s)
+    step eos _ _ err = err (toException EndOfStreamException) eos
 
 stream2list :: (Monad m, LL.ListLike s el) => Yteratee s m [el]
 stream2list = step []
